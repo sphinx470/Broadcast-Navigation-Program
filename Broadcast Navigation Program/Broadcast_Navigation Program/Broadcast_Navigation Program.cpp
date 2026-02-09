@@ -9,7 +9,7 @@
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "icmp.lib") 
+//#pragma comment(lib, "icmp.lib") 
 
 
 
@@ -61,6 +61,24 @@ static void print_mac(const BYTE* mac, ULONG macLen) {
         if (i) printf("-");
         printf("%02X", mac[i]);
     }
+}
+
+static int reverse_dns_hostname(DWORD ip_be, char* host, size_t hostsz)
+{
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = ip_be; // 네트워크 바이트 오더 그대로
+
+    // NI_NAMEREQD: 이름이 없으면 실패 처리 (IP 문자열로 대체하지 않음)
+    // NI_NOFQDN: FQDN이더라도 호스트 부분만 원할 때 사용 가능(옵션)
+    int flags = NI_NAMEREQD; // | NI_NOFQDN;
+
+    int r = getnameinfo((struct sockaddr*)&sa, sizeof(sa),
+        host, (DWORD)hostsz,
+        NULL, 0,
+        flags);
+    return (r == 0) ? 1 : 0;
 }
 
 int main(void) {
@@ -184,7 +202,12 @@ int main(void) {
                 char foundIp[32];
                 ip_to_str(rep->Address, foundIp, sizeof(foundIp));
 
-                printf("[UP ] %s  rtt=%lums  mac=", foundIp, rep->RoundTripTime);
+                char host[256];
+                int hasHost = reverse_dns_hostname(rep->Address, host, sizeof(host));
+
+
+                printf("[UP ] %s  rtt=%lums  host=%s                           mac=", foundIp, rep->RoundTripTime, hasHost ? host : "-");
+                    
                 if (arp == NO_ERROR) print_mac(mac, macLen);
                 else printf("(arp fail:%lu)", arp);
                 printf("\n");
